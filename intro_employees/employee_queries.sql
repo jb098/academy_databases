@@ -63,11 +63,5 @@ AND (
 )
 AND salary = (
     SELECT min(salary)
-    FROM employee e2
-    WHERE e2.mf == 'F'
-    AND (
-        instr(lower(e2.first_name), 'a')
-        OR
-        instr(lower(e2.surname), 'c')
-    )
+    FROM employee)
 );
