@@ -44,6 +44,9 @@ class FieldGenerator(object):
         """
         raise NotImplementedError
 
+    def get_data_type(self):
+        raise NotImplementedError
+
 
 class RandFromListFieldGenerator(FieldGenerator):
     def __init__(self, data_list):
@@ -52,12 +55,18 @@ class RandFromListFieldGenerator(FieldGenerator):
     def generate(self, context):
         return rand_from_list(self.data_list)
 
+    def get_data_type(self):
+        return DATA_VARCHAR
+
 
 class DateFieldGenerator(FieldGenerator):
     def __init__(self, date_start, date_end):
         # Dates in "01/02/2003" format
         self.start = DateFieldGenerator.date_str_to_date(date_start)
         self.end = DateFieldGenerator.date_str_to_date(date_end)
+
+    def get_data_type(self):
+        return DATA_DATE
 
     @staticmethod
     def date_str_to_date(date_str):
@@ -70,6 +79,20 @@ class DateFieldGenerator(FieldGenerator):
         return (self.start + datetime.timedelta(seconds=random_second)).strftime('%d/%m/%Y')
 
 
+class IntGenerator(FieldGenerator):
+    def __init__(self, min_val, max_val, multiplier=1):
+        # note excludes max
+        self.min_val = min_val
+        self.max_val = max_val
+        self.multiplier = multiplier
+
+    def get_data_type(self):
+        return DATA_INT
+
+    def generate(self, context):
+        return str(random.randrange(self.min_val, self.max_val) * self.multiplier)
+
+
 class SequentialKeyGenerator(FieldGenerator):
     def __init__(self, first_key):
         self.next_key = first_key
@@ -78,6 +101,9 @@ class SequentialKeyGenerator(FieldGenerator):
         tmp = self.next_key
         self.next_key += 1
         return str(tmp)
+
+    def get_data_type(self):
+        return DATA_KEY
 
 
 class DataWriter(object):
@@ -132,8 +158,9 @@ class DBOutput(DataWriter):
         self.insert_row(table_md, row)
 
     def create_or_clear_table(self, table_md):
-        command = 'BEGIN TRANSACTION;\nDROP TABLE ' + table_md.name + ";\n"
-        command += 'CREATE TABLE ' + table_md.name + '('
+        command = 'BEGIN TRANSACTION;'
+        command += '\nDROP TABLE ' + table_md.name + ";"
+        command += '\nCREATE TABLE ' + table_md.name + ' ('
         column_strs = []
         for column in table_md.columns:
             column_str = ""
@@ -157,7 +184,7 @@ class DBOutput(DataWriter):
         self.write_command(command)
 
     def insert_row(self, table_md, row):
-        command = 'INSERT INTO ' + table_md.name + ' VALUES( '
+        command = 'INSERT INTO ' + table_md.name + ' VALUES ('
         col_strs = []
         for col_md, field_val in zip(table_md.columns, row):
             data_type = col_md.data_type
@@ -166,7 +193,7 @@ class DBOutput(DataWriter):
             elif data_type in [DATA_DATE, DATA_VARCHAR]:
                 col_strs.append('\'' + field_val + '\'')
         command += ", ".join(col_strs)
-        command += ' );'
+        command += ');'
 
         self.write_command(command)
 
@@ -205,12 +232,18 @@ class FirstNameGenerator(FieldGenerator):
 
         return None
 
+    def get_data_type(self):
+        return DATA_VARCHAR
+
 
 class MFGenerator(FieldGenerator):
     def generate(self, context):
         if 'MF' in context:
             return context['MF']
         return None
+
+    def get_data_type(self):
+        return DATA_VARCHAR
 
 
 class TableCreator(object):
@@ -222,7 +255,8 @@ class TableCreator(object):
         self.field_generators = []
         self.outputs = []
 
-    def add_field(self, field_name, field_type, field_generator):
+    def add_field(self, field_name, field_generator):
+        field_type = field_generator.get_data_type()
         self.table_md.add_column(field_name, field_type)
         self.field_generators.append(field_generator)
 
@@ -233,7 +267,6 @@ class TableCreator(object):
         for _ in range(self.entries_count):
             context = self.update_context()
             row = [generator.generate(context) for generator in self.field_generators]
-            print(str(row))
             for output in self.outputs:
                 output.write(self.table_md, row)
 
@@ -247,21 +280,25 @@ if __name__ == "__main__":
     name_gen_m = RandFromListFieldGenerator(import_list_resource("FirstNamesM.csv"))
 
     # Generate employee table
-    employee_count = 5
+    employee_count = 500
     employee_creator = TableCreator('employee', employee_count, update_context=lambda: {'MF': rand_from_list(['M', 'F'])})
 
     employee_creator.add_output(mem_out)
     employee_creator.add_output(csv_out)
     employee_creator.add_output(db_out)
 
-    employee_creator.add_field('id', DATA_KEY, SequentialKeyGenerator(1))
-    employee_creator.add_field('first_name', DATA_VARCHAR, FirstNameGenerator(name_gen_m, name_gen_f))
-    employee_creator.add_field('surname', DATA_VARCHAR, RandFromListFieldGenerator(import_list_resource("Surnames.csv")))
-    employee_creator.add_field('mf', DATA_VARCHAR, MFGenerator())
-    employee_creator.add_field('date_birth', DATA_DATE, DateFieldGenerator('01/01/1956', '01/01/1980'))
-    employee_creator.add_field('date_started', DATA_DATE, DateFieldGenerator('01/01/1998', '01/01/2016'))
-    #employee_creator.add_field('manager',
+    employee_creator.add_field('id', SequentialKeyGenerator(1))
+    employee_creator.add_field('first_name', FirstNameGenerator(name_gen_m, name_gen_f))
+    employee_creator.add_field('surname', RandFromListFieldGenerator(import_list_resource("Surnames.csv")))
+    employee_creator.add_field('mf', MFGenerator())
+    employee_creator.add_field('date_birth', DateFieldGenerator('01/01/1956', '01/01/1980'))
+    employee_creator.add_field('date_started', DateFieldGenerator('01/01/1998', '01/01/2016'))
+    employee_creator.add_field('salary', IntGenerator(10, 150, multiplier=1000))
+    # employee_creator.add_field('manager',
 
     employee_creator.generate()
 
-    print(str(MemoryOutput.tables['employee']))
+    if employee_count <= 10:
+        print(str(MemoryOutput.tables['employee']))
+    else:
+        print("Complete")
