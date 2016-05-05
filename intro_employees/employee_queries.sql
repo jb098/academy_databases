@@ -51,13 +51,13 @@ FROM employee
 WHERE mf == 'F'
 AND date_birth < '05/05/1966';
 
---Date of employment of least well paid woman whose first name 
---contains an 'a' or surname contains a 'c'
+--Date of employment of least well paid woman/women whose first name 
+--contains an 'k' or surname contains a 'c'
 SELECT date_started
 FROM employee e
 WHERE e.mf == 'F'
 AND (
-    instr(lower(e.first_name), 'a')
+    instr(lower(e.first_name), 'k')
     OR
     instr(lower(e.surname), 'c')
 )
@@ -66,7 +66,7 @@ AND salary = (
     FROM employee e2
     WHERE e2.mf == 'F'
     AND (
-        instr(lower(e2.first_name), 'a')
+        instr(lower(e2.first_name), 'k')
         OR
         instr(lower(e2.surname), 'c')
     )
