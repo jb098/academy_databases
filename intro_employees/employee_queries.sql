@@ -43,13 +43,13 @@ FROM (
 SELECT COUNT(id)
 FROM employee
 WHERE mf == 'M'
-AND date_birth < '05/05/1966';
+AND date_birth < '1966-05-05';
 
 --How many women over 50 at the company?
 SELECT COUNT(id)
 FROM employee
 WHERE mf == 'F'
-AND date_birth < '05/05/1966';
+AND date_birth < '1966-05-05';
 
 --Date of employment of least well paid woman/women whose first name 
 --contains an 'k' or surname contains a 'c'
